@@ -10,29 +10,42 @@ Start
 	CLEAN_START
 
 ; Variables	
-SkaterVerticalVelocity = $80
-SkaterVerticalPos = $81
-SkaterVerticalDelay = $82
-SkaterBitmapBuffer = $83
-SkaterLineBeingDraw = $84
-SkaterBitmapLocation = $85 ; it takes 2 bytes
+DinoVerticalVelocity = $80
+DinoVerticalPos = $81
+DinoVerticalDelay = $82
+DinoBitmapBuffer = $83
+DinoLineBeingDraw = $84
+DinoBitmapLocation = $85 ; it takes 2 bytes
+VarButtonLock = $87;
+DinoAnimateSpriteBitmap = $88
+DinoAnimateSpriteDelay = $89
 
 ; Constants
-GroundVerticalPos = 74
-
+GroundVerticalPos = 65
+DinoAnimateSpriteFramesDelay = 8
 	
 	; Set background color to light blue
 	lda #$9C
 	sta COLUBK
 
+	lda #$C2
+	sta COLUP0
+	
+	lda #$E2
+	sta COLUPF
+
 	lda #0
-	sta SkaterVerticalDelay
+	sta DinoVerticalDelay
+	sta VarButtonLock
 
-	lda #GroundVerticalPos-1
-	sta SkaterVerticalPos
+	lda #GroundVerticalPos
+	sta DinoVerticalPos
+	
+	lda #DinoAnimateSpriteFramesDelay
+	sta DinoAnimateSpriteDelay
 
-	lda #-5
-	sta SkaterVerticalVelocity
+	lda #0
+	sta DinoVerticalVelocity
 
 FrameLoop
 
@@ -41,97 +54,77 @@ FrameLoop
 	lda #43
 	sta TIM64T
 	
-	; Skater bitmap location
-  lda #<SkaterStanding
-  sta SkaterBitmapLocation
-  lda #>SkaterStanding
-  sta SkaterBitmapLocation + 1
+	lda #$00
+	sta PF0
+	sta PF1
+	sta PF2
 	
+	jsr AnimateDinoSprite
+	jsr HandleDinoJump
 	
-	lda SkaterVerticalVelocity
-	adc SkaterVerticalPos
-	sta SkaterVerticalPos
-	
-	lda #65
-	adc SkaterVerticalDelay
-	cmp #$ff
-	bvc DontAdjustVerticalVelocity
-	
-	lda SkaterVerticalVelocity
-	adc #1
-	sta SkaterVerticalVelocity
-	
-DontAdjustVerticalVelocity
-
-	sta SkaterVerticalDelay
-
-	; Check if Skater is touching the ground
-	lda SkaterVerticalPos
-	cmp #GroundVerticalPos
-	bcc DontResetJump
-
-	; Reset Jump
-	lda #0
-	sta SkaterVerticalDelay
-
-	lda #GroundVerticalPos-1
-	sta SkaterVerticalPos
-
-	lda #-5
-	sta SkaterVerticalVelocity
-
-DontResetJump
-	
+	sta WSYNC
+	SLEEP 30
+	sta RESP0
 
 WaitForVblankEnd
 	lda INTIM
 	bne WaitForVblankEnd
 	lda #0
 	sta WSYNC
-	sta HMOVE
 	sta VBLANK
 
 	ldy #0
+
 ScanlineLoop
 	sta WSYNC
 
-	lda SkaterBitmapBuffer
+	lda DinoBitmapBuffer
 	sta GRP0
 
   lda #0
-  sta SkaterBitmapBuffer
+  sta DinoBitmapBuffer
 
-	cpy SkaterVerticalPos
-	bne SkipSkaterDrawBegin
+	cpy DinoVerticalPos
+	bne SkipDinoDrawBegin
 	
-	lda #15
-	sta SkaterLineBeingDraw	
-	
-	lda #%00111100
+	lda #14
+	sta DinoLineBeingDraw	
 
-SkipSkaterDrawBegin
+SkipDinoDrawBegin
 
   tya
   tax
-	ldy SkaterLineBeingDraw
+	ldy DinoLineBeingDraw
+	beq FinishDraw
 
-	beq FinishDraw		
-	lda ColorSkaterStanding,Y
-	sta COLUP0
-
-  lda (SkaterBitmapLocation),Y
-	sta SkaterBitmapBuffer
-	dec SkaterLineBeingDraw
+  lda (DinoBitmapLocation),Y
+	sta DinoBitmapBuffer
+	dec DinoLineBeingDraw
+	
 FinishDraw
+
+	sta WSYNC
 
   txa
   tay
-	
-	sta WSYNC
 	iny
-	cpy #96
+	cpy #80
 	bne ScanlineLoop
 	
+	lda #0
+	sta GRP0
+	
+	lda #$FF
+	sta PF0
+	sta PF1
+	sta PF2
+	
+	ldy #20
+GroundScanlineLoop
+	sta WSYNC
+	dey 
+	bne GroundScanlineLoop
+
 	; Overscan
 	lda #2
 	sta WSYNC
@@ -145,7 +138,8 @@ OverScanWait
 	
 	jmp FrameLoop
 
-	include data/skater.bit
+	include dino.asm
+	include data/bitmaps.asm
 	
 	org $FFFC
 	.word Start
